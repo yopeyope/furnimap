@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FurniMap</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 1em;
+      }
+      section {
+        margin-bottom: 1em;
+        padding-bottom: 0.5em;
+        border-bottom: 1px solid #ccc;
+      }
+      h3 {
+        font-size: 1rem;
+        border-left: 4px solid #007bff;
+        padding-left: 0.5em;
+        margin-bottom: 0.5em;
+      }
+      input,
+      select,
+      button {
+        margin-top: 0.3em;
+        padding: 0.4em;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        font-size: 0.9em;
+      }
+      button {
+        margin-bottom: 0.3em;
+        background-color: #f0f0f0;
+        cursor: pointer;
+        transition: background 0.2s, color 0.2s;
+      }
+      button:hover {
+        background-color: #007bff;
+        color: white;
+      }
+      .mode-btn.active {
+        background-color: #007bff;
+        color: white;
+      }
+      .button-row {
+        display: flex;
+        gap: 0.5em;
+        flex-wrap: wrap;
+      }
+      label {
+        display: block;
+        margin-bottom: 0.3em;
+      }
+      .tooltip {
+        position: relative;
+        display: inline-block;
+        cursor: help;
+      }
+      .tooltip .tooltiptext {
+        visibility: hidden;
+        width: max-content;
+        background-color: #333;
+        color: #fff;
+        text-align: left;
+        border-radius: 4px;
+        padding: 5px;
+        position: absolute;
+        z-index: 10;
+        top: 100%;
+        left: 0;
+        margin-top: 4px;
+        font-size: 0.8em;
+        white-space: nowrap;
+      }
+      .tooltip:hover .tooltiptext {
+        visibility: visible;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>FurniMap</h1>
+    <div style="display: flex; gap: 1em">
+      <!-- 左側：操作パネル -->
+      <div id="controls" style="width: 250px">
+        <!-- 1. 間取り図の読み込み -->
+        <section>
+          <h3>
+            1. 間取り図<span class="tooltip"
+              >❓
+              <span class="tooltiptext"
+                >間取り図の画像ファイル（PNGやJPEG）を読み込みできます。</span
+              >
+            </span>
+          </h3>
+          <input type="file" id="floorImage" accept="image/*" />
+        </section>
+
+        <!-- 2. スケールの設定 -->
+        <section>
+          <h3>
+            2. スケール設定<span class="tooltip"
+              >❓
+              <span class="tooltiptext"
+                >間取り図上に実寸がわかっている線を引き、実寸値を入力することでスケール設定できます。<br />直接スケール設定値を入力することもできます。</span
+              >
+            </span>
+          </h3>
+          <button id="setScale">図面からスケール設定</button>
+          <label>
+            1 px =
+            <input
+              type="number"
+              id="scaleInputPxPerMm"
+              value="0.2"
+              style="width: 60px"
+            />
+            mm
+          </label>
+        </section>
+
+        <!-- 3. 家具の配置 -->
+        <section>
+          <h3>
+            3. 家具の配置<span class="tooltip"
+              >❓
+              <span class="tooltiptext"
+                >追加ボタンをクリックして家具の名称・サイズを入力した後、間取り図の希望の位置をクリックして家具を配置します。<br />選択ボタンをクリックして配置済みの家具を移動したりDeleteキーで削除したりします。</span
+              >
+            </span>
+          </h3>
+          <div class="button-row">
+            <button id="modeAdd" class="mode-btn">追加</button>
+            <button id="modeSelect" class="mode-btn">選択</button>
+          </div>
+          <div id="addOptions" style="display: none; margin-top: 0.5em">
+            <select id="shapeType">
+              <option value="rect">四角</option>
+              <option value="circle">円形</option>
+            </select>
+            <input type="text" id="labelInput" placeholder="例: 本棚" />
+            <input type="number" id="widthInput" placeholder="幅 (mm)" />
+            <input type="number" id="heightInput" placeholder="高さ (mm)" />
+          </div>
+        </section>
+
+        <!-- 4. 保存・読み込み -->
+        <section>
+          <h3>
+            4. データ操作<span class="tooltip"
+              >❓
+              <span class="tooltiptext"
+                >間取り図ファイルと配置済み家具の情報をまとめて保存もしくは読み込みできます（jsonファイル）。</span
+              >
+            </span>
+          </h3>
+          <div class="button-row">
+            <button id="saveBtn">保存</button>
+            <button id="loadBtn">読み込み</button>
+          </div>
+          <input
+            type="file"
+            id="loadInput"
+            accept=".json"
+            style="display: none"
+          />
+        </section>
+
+        <!-- 5. 印刷 -->
+        <section>
+          <h3>
+            5. 印刷<span class="tooltip"
+              >❓
+              <span class="tooltiptext"
+                >配置済みの家具の一覧もしくは家具の型紙を印刷できます。</span
+              >
+            </span>
+          </h3>
+          <label>
+            印刷縮尺（1/n）:
+            <input
+              type="number"
+              id="printScaleInput"
+              value="60"
+              min="1"
+              style="width: 60px"
+            />
+          </label>
+          <div class="button-row">
+            <button id="printTemplateBtn">型紙を印刷</button>
+            <button onclick="printFurnitureList()">家具一覧を印刷</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- 右側：キャンバス表示 -->
+      <div style="flex: 1">
+        <canvas id="canvas"></canvas>
+      </div>
+    </div>
+
+    <script>
+      const floorImageInput = document.getElementById("floorImage");
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const shapeType = document.getElementById("shapeType");
+      const labelInput = document.getElementById("labelInput");
+      const widthInput = document.getElementById("widthInput");
+      const heightInput = document.getElementById("heightInput");
+      const scaleButton = document.getElementById("setScale");
+      const scaleDisplay = document.getElementById("scaleDisplay");
+
+      const messages = {
+        en: {
+          invalidImageFile: "Please select a valid image file.",
+          loadImageFirst: "Please load a floor plan image first.",
+          drawLine:
+            "Draw a line on the image to represent a known real-world length.",
+          setScaleFirst: "Please set the scale first.",
+          enterValidDimensions: "Please enter valid dimensions in mm.",
+          promptRealLength:
+            "What is the real-world length of this line (in mm)?",
+          invalidScaleInput: "Invalid value. Scale was not set.",
+          loadFailedInvalidJSON:
+            "Failed to load. Please select a valid JSON file.",
+        },
+        ja: {
+          invalidImageFile: "有効な画像ファイルを選択してください。",
+          loadImageFirst: "最初に間取り図画像を読み込んでください。",
+          drawLine: "画像上に実寸がわかっている線を引いてください。",
+          setScaleFirst: "最初にスケールを設定してください。",
+          enterValidDimensions: "寸法（mm）を正しく入力してください。",
+          promptRealLength: "この線の長さは何mmですか？",
+          invalidScaleInput: "無効な数値です。スケールは設定されませんでした。",
+          loadFailedInvalidJSON:
+            "読み込みに失敗しました。正しいJSONファイルを選択してください。",
+        },
+      };
+      let currentLang = "ja"; // または 'en'
+
+      let image = null;
+      let scalePxPerMm = null;
+      let shapes = [];
+      let isSettingScale = false;
+      let startX = 0,
+        startY = 0;
+
+      let zoom = 1.0; // 拡大率（初期値: 等倍）
+      const ZOOM_STEP = 0.1; // ズームの増減単位
+
+      let isDraggingScaleLine = false;
+      let currentX = 0,
+        currentY = 0;
+
+      let selectedShapeIndex = -1;
+      let isDragging = false;
+      let dragOffsetX = 0;
+      let dragOffsetY = 0;
+
+      let didDrag = false;
+      let clickedShapeIndex = -1;
+
+      let currentMode = "select"; // "select", "add", "scale"
+
+      function setMode(mode) {
+        currentMode = mode;
+        document.getElementById("addOptions").style.display =
+          mode === "add" ? "block" : "none";
+
+        // ボタンの見た目切り替え
+        document
+          .querySelectorAll(".mode-btn")
+          .forEach((btn) => btn.classList.remove("active"));
+        document
+          .getElementById(`mode${mode.charAt(0).toUpperCase() + mode.slice(1)}`)
+          .classList.add("active");
+      }
+
+      document
+        .getElementById("modeSelect")
+        .addEventListener("click", () => setMode("select"));
+      document
+        .getElementById("modeAdd")
+        .addEventListener("click", () => setMode("add"));
+
+      document.addEventListener("keydown", (e) => {
+        if (currentMode === "select") {
+          if (
+            (e.key === "Delete" || e.key === "Backspace") &&
+            selectedShapeIndex !== -1
+          ) {
+            shapes.splice(selectedShapeIndex, 1);
+            selectedShapeIndex = -1;
+            draw();
+          }
+        }
+      });
+
+      floorImageInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file || !file.type.startsWith("image/")) {
+          // alert("Please select a valid image file.");
+          alert(messages[currentLang].invalidImageFile);
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = function (evt) {
+          image = new Image();
+          image.onload = function () {
+            canvas.width = image.width;
+            canvas.height = image.height;
+            draw();
+          };
+          image.src = evt.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+
+      document
+        .getElementById("scaleInputPxPerMm")
+        .addEventListener("input", function (e) {
+          scalePxPerMm = parseFloat(e.target.value) || 0.2;
+          draw(); // 必要に応じて再描画
+        });
+
+      function draw() {
+        if (!image) return;
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0); // リセット
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.scale(zoom, zoom);
+
+        drawBackground();
+        drawShapes();
+        drawOverlay(); // スケール線など動的な一時描画
+      }
+
+      function drawBackground() {
+        ctx.drawImage(image, 0, 0);
+      }
+
+      function drawShapes() {
+        shapes.forEach((shape, index) => {
+          ctx.beginPath();
+          ctx.fillStyle = "rgba(0, 128, 255, 0.5)";
+
+          if (shape.type === "rect") {
+            ctx.fillRect(
+              shape.x,
+              shape.y,
+              shape.width * scalePxPerMm,
+              shape.height * scalePxPerMm
+            );
+
+            // ラベル
+            if (shape.label) {
+              ctx.fillStyle = "black";
+              ctx.font = `${12 / zoom}px sans-serif`;
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillText(
+                shape.label,
+                shape.x + (shape.width * scalePxPerMm) / 2,
+                shape.y + (shape.height * scalePxPerMm) / 2
+              );
+            }
+
+            // 選択中枠
+            if (index === selectedShapeIndex) {
+              ctx.strokeStyle = "red";
+              ctx.lineWidth = 2 / zoom;
+              ctx.strokeRect(
+                shape.x,
+                shape.y,
+                shape.width * scalePxPerMm,
+                shape.height * scalePxPerMm
+              );
+            }
+          } else if (shape.type === "circle") {
+            ctx.arc(
+              shape.x,
+              shape.y,
+              shape.radius * scalePxPerMm,
+              0,
+              Math.PI * 2
+            );
+            ctx.fill();
+
+            if (shape.label) {
+              ctx.fillStyle = "black";
+              ctx.font = `${12 / zoom}px sans-serif`;
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillText(
+                shape.label,
+                shape.x * scalePxPerMm,
+                shape.y * scalePxPerMm
+              );
+            }
+
+            if (index === selectedShapeIndex) {
+              ctx.beginPath();
+              ctx.strokeStyle = "red";
+              ctx.lineWidth = 2 / zoom;
+              ctx.arc(
+                shape.x,
+                shape.y,
+                shape.radius * scalePxPerMm,
+                0,
+                Math.PI * 2
+              );
+              ctx.stroke();
+            }
+          }
+        });
+      }
+
+      function drawOverlay() {
+        if (isSettingScale && isDraggingScaleLine) {
+          ctx.beginPath();
+          ctx.strokeStyle = "red";
+          ctx.lineWidth = 2 / zoom;
+          ctx.moveTo(startX, startY);
+          ctx.lineTo(currentX, currentY);
+          ctx.stroke();
+        }
+      }
+
+      scaleButton.addEventListener("click", () => {
+        if (!image) {
+          // alert("Please load a floor plan image first.");
+          alert(messages[currentLang].loadImageFirst);
+          return;
+        }
+        isSettingScale = true;
+        // alert(
+        //   "Draw a line on the image to represent a known real-world length."
+        // );
+        alert(messages[currentLang].drawLine);
+      });
+
+      canvas.addEventListener("click", (e) => {
+        if (didDrag) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / zoom;
+        const y = (e.clientY - rect.top) / zoom;
+
+        // ✅ 家具が選択されていなかったら選択解除（空白クリック）
+        if (currentMode === "select") {
+          let clicked = false;
+          for (let i = shapes.length - 1; i >= 0; i--) {
+            const shape = shapes[i];
+            if (
+              (shape.type === "rect" &&
+                x >= shape.x &&
+                x <= shape.x + shape.width * scalePxPerMm &&
+                y >= shape.y &&
+                y <= shape.y + shape.height * scalePxPerMm) ||
+              (shape.type === "circle" &&
+                Math.hypot(shape.x - x, shape.y - y) <= shape.radius)
+            ) {
+              selectedShapeIndex = i;
+              clicked = true;
+              break;
+            }
+          }
+
+          if (!clicked) {
+            // 空白クリックなら選択解除
+            selectedShapeIndex = -1;
+          }
+          draw();
+        } else if (currentMode === "add") {
+          if (!scalePxPerMm) {
+            // alert("Please set the scale first.");
+            alert(messages[currentLang].setScaleFirst);
+            return;
+          }
+
+          const shape = shapeType.value;
+          const label = labelInput.value.trim();
+          const widthMm = parseFloat(widthInput.value);
+          const heightMm = parseFloat(heightInput.value);
+
+          if (isNaN(widthMm) || (shape === "rect" && isNaN(heightMm))) {
+            // alert("Please enter valid dimensions in mm.");
+            alert(messages[currentLang].enterValidDimensions);
+            return;
+          }
+
+          if (shape === "rect") {
+            shapes.push({
+              type: "rect",
+              x,
+              y,
+              width: widthMm,
+              height: heightMm,
+              label: label,
+            });
+          } else if (shape === "circle") {
+            shapes.push({
+              type: "circle",
+              x,
+              y,
+              radius: widthMm / 2,
+              label: label,
+            });
+          }
+
+          draw();
+        }
+      });
+
+      canvas.addEventListener("wheel", (e) => {
+        e.preventDefault(); // ページスクロール防止
+
+        const zoomDirection = e.deltaY < 0 ? 1 : -1;
+        const prevZoom = zoom;
+        zoom += zoomDirection * ZOOM_STEP;
+
+        // ズーム倍率の制限
+        zoom = Math.min(Math.max(zoom, 0.2), 5.0);
+
+        draw(); // 再描画
+      });
+
+      canvas.addEventListener("mousedown", (e) => {
+        didDrag = false;
+        if (isSettingScale) {
+          // Set scale
+          const rect = canvas.getBoundingClientRect();
+          startX = (e.clientX - rect.left) / zoom;
+          startY = (e.clientY - rect.top) / zoom;
+          isDraggingScaleLine = true;
+          return;
+        }
+
+        if (currentMode === "select") {
+          // Select a furniture
+          const rect = canvas.getBoundingClientRect();
+          const x = (e.clientX - rect.left) / zoom;
+          const y = (e.clientY - rect.top) / zoom;
+
+          selectedShapeIndex = -1;
+          isDragging = false;
+
+          // 前から順にチェック（後から配置された図形優先）
+          for (let i = shapes.length - 1; i >= 0; i--) {
+            const shape = shapes[i];
+            if (
+              (shape.type === "rect" &&
+                x >= shape.x &&
+                x <= shape.x + shape.width * scalePxPerMm &&
+                y >= shape.y &&
+                y <= shape.y + shape.height * scalePxPerMm) ||
+              (shape.type === "circle" &&
+                Math.hypot(shape.x - x, shape.y - y) <=
+                  shape.radius * scalePxPerMm)
+            ) {
+              selectedShapeIndex = i;
+              dragOffsetX = x - shape.x;
+              dragOffsetY = y - shape.y;
+              isDragging = true;
+              break;
+            }
+          }
+
+          draw();
+        }
+      });
+
+      canvas.addEventListener("mousemove", (e) => {
+        if (e.buttons === 1) {
+          didDrag = true;
+        }
+
+        if (currentMode === "select") {
+          const rect = canvas.getBoundingClientRect();
+          const x = (e.clientX - rect.left) / zoom;
+          const y = (e.clientY - rect.top) / zoom;
+
+          if (isSettingScale && isDraggingScaleLine) {
+            currentX = x;
+            currentY = y;
+            draw(); // スケール線を含めた描画
+          } else if (isDragging && selectedShapeIndex !== -1) {
+            const shape = shapes[selectedShapeIndex];
+            shape.x = x - dragOffsetX;
+            shape.y = y - dragOffsetY;
+            draw(); // 家具の移動を反映
+          }
+        }
+      });
+
+      canvas.addEventListener("mouseup", (e) => {
+        isDraggingScaleLine = false;
+        isDragging = false;
+
+        if (isSettingScale) {
+          const rect = canvas.getBoundingClientRect();
+          const endX = (e.clientX - rect.left) / zoom;
+          const endY = (e.clientY - rect.top) / zoom;
+          const dx = endX - startX;
+          const dy = endY - startY;
+          const pixelDistance = Math.sqrt(dx * dx + dy * dy);
+
+          // const mmInput = prompt(`この線の長さは何mmですか？`, "1000");
+          const mmInput = prompt(
+            messages[currentLang].promptRealLength,
+            "1000"
+          );
+          const mm = parseFloat(mmInput);
+
+          if (mm > 0) {
+            scalePxPerMm = pixelDistance / mm;
+            document.getElementById("scaleInputPxPerMm").value = scalePxPerMm;
+
+            // scaleDisplay.textContent = `Scale: 1 mm = ${scalePxPerMm.toFixed(
+            //   2
+            // )} px`;
+          } else {
+            // alert("無効な数値です。スケールは設定されませんでした。");
+            alert(messages[currentLang].invalidScaleInput);
+          }
+          isSettingScale = false;
+          draw(); // スケール確定後に全体再描画
+        }
+      });
+
+      document.getElementById("saveBtn").addEventListener("click", () => {
+        const saveData = {
+          imageSrc: image.src, // FileReaderで読み込んだ画像のdataURL
+          scalePxPerMm: scalePxPerMm,
+          shapes: shapes,
+        };
+        const blob = new Blob([JSON.stringify(saveData, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "furnimap-data.json";
+        a.click();
+
+        URL.revokeObjectURL(url);
+      });
+
+      document.getElementById("loadBtn").addEventListener("click", () => {
+        document.getElementById("loadInput").click();
+      });
+
+      document
+        .getElementById("loadInput")
+        .addEventListener("change", (event) => {
+          const file = event.target.files[0];
+          if (!file) return;
+
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            try {
+              const data = JSON.parse(e.target.result);
+
+              if (data.imageSrc) {
+                const img = new Image();
+                img.onload = () => {
+                  canvas.width = img.width;
+                  canvas.height = img.height;
+                  image = img; // ← グローバル変数 image に保持
+                  scalePxPerMm = data.scalePxPerMm || 0.2;
+                  document.getElementById("scaleInputPxPerMm").value =
+                    scalePxPerMm;
+                  shapes = data.shapes || [];
+                  draw();
+                };
+                img.src = data.imageSrc;
+              }
+            } catch (err) {
+              // alert(
+              //   "読み込みに失敗しました。正しいJSONファイルを選択してください。"
+              // );
+              alert(messages[currentLang].loadFailedInvalidJSON);
+              console.error(err);
+            }
+          };
+          reader.readAsText(file);
+        });
+
+      document
+        .getElementById("printTemplateBtn")
+        .addEventListener("click", printFurnitureTemplates);
+
+      function printFurnitureList() {
+        const printScale = parseFloat(
+          document.getElementById("printScaleInput").value
+        );
+
+        // 新しい印刷用ウィンドウを開く
+        const printWindow = window.open("", "_blank");
+
+        printWindow.document.write(`
+    <html>
+      <head>
+        <title>家具一覧</title>
+        <style>
+          @media print {
+            @page {
+              size: A4 portrait;
+              margin: 20mm;
+            }
+            body {
+              font-family: sans-serif;
+              font-size: 12pt;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 20px;
+            }
+            th, td {
+              border: 1px solid #000;
+              padding: 6px;
+              text-align: left;
+            }
+            th {
+              background-color: #eee;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>家具一覧</h1>
+        <p>縮尺：1/${printScale}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Index</th>
+              <th>Label</th>
+              <th>Width (mm)</th>
+              <th>Height (mm)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${shapes
+              .map((shape, index) => {
+                return `<tr>
+                          <td>${index + 1}</td>
+                          <td>${shape.label}</td>
+                          <td>${shape.width}</td>
+                          <td>${shape.height}</td>
+                        </tr>`;
+              })
+              .join("")}
+          </tbody>
+        </table>
+      </body>
+    </html>
+  `);
+
+        printWindow.document.close();
+
+        printWindow.onload = () => {
+          printWindow.focus();
+          printWindow.print();
+        };
+      }
+
+      function printFurnitureTemplates() {
+        const printScale = parseFloat(
+          document.getElementById("printScaleInput").value
+        ); // 例: 60
+        const DPI = 96;
+        const PX_PER_MM = DPI / 25.4; // 約3.78px/mm
+
+        const pageWidthMM = 210;
+        const pageHeightMM = 297;
+        const pageWidthPx = Math.round(pageWidthMM * PX_PER_MM);
+        const pageHeightPx = Math.round(pageHeightMM * PX_PER_MM);
+
+        const scaleFactor = PX_PER_MM / printScale; // 家具1mmを印刷上でどう表現するか（1/60ならかなり小さく）
+
+        const paddingMM = 10;
+        const marginMM = 0;
+        const padding = paddingMM * PX_PER_MM;
+        const margin = marginMM * PX_PER_MM;
+
+        let x = padding;
+        let y;
+
+        const pages = [];
+
+        let canvas = document.createElement("canvas");
+        canvas.width = pageWidthPx;
+        canvas.height = pageHeightPx;
+        let ctx = canvas.getContext("2d");
+
+        const initPage = () => {
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.strokeStyle = "#000";
+          ctx.fillStyle = "#000";
+          //   ctx.font = `${Math.round((10 * PX_PER_MM) / 3.78)}px sans-serif`; // 実寸10pt相当
+          ctx.font = `bold 14px sans-serif`;
+          ctx.textAlign = "left";
+          ctx.textBaseline = "top";
+
+          const titleText = "型紙印刷";
+          const scaleText = `縮尺：1/${printScale}`;
+
+          ctx.fillText(titleText, padding, padding); // タイトル
+          ctx.fillText(scaleText, padding, padding + 20); // 縮尺
+
+          // 家具の描画開始位置を少し下にずらす
+          y = padding + 50;
+        };
+
+        initPage();
+
+        shapes.forEach((shape, i) => {
+          const w = shape.width * scaleFactor;
+          const h = shape.height * scaleFactor;
+
+          // 改行分のテキストスペース確保（文字サイズ + 少し余白）
+          const textLineHeight = 12;
+          const totalTextHeight = textLineHeight * 2;
+
+          if (x + w + padding > pageWidthPx) {
+            x = padding;
+            y += h + totalTextHeight + margin;
+
+            if (y + h + totalTextHeight + padding > pageHeightPx) {
+              // ページ保存して次へ
+              pages.push(canvas);
+              canvas = document.createElement("canvas");
+              canvas.width = pageWidthPx;
+              canvas.height = pageHeightPx;
+              ctx = canvas.getContext("2d");
+              x = padding;
+              y = padding;
+              initPage();
+            }
+          }
+
+          // 枠を描画
+          ctx.strokeRect(x, y, w, h);
+
+          // 寸法とラベルを描画（枠の内部の中央）
+          ctx.fillStyle = "#000";
+          ctx.font = "10px sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+
+          const centerX = x + w / 2;
+          const centerY = y + h / 2;
+
+          ctx.fillText(shape.label, centerX, centerY - textLineHeight / 2);
+          ctx.fillText(
+            `${shape.width} x ${shape.height}`,
+            centerX,
+            centerY + textLineHeight / 2
+          );
+
+          x += w;
+        });
+
+        pages.push(canvas);
+
+        // 印刷ウィンドウ表示
+        const printWindow = window.open("", "_blank");
+        printWindow.document.write(`
+  <html>
+    <head>
+      <title>型紙印刷</title>
+      <style>
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 0;
+          }
+          body {
+            margin: 0;
+          }
+          img {
+            width: 210mm;
+            page-break-after: always;
+          }
+        }
+        body {
+          background: white;
+          padding: 0;
+          margin: 0;
+        }
+      </style>
+    </head>
+    <body>
+  `);
+
+        pages.forEach((canvas, i) => {
+          const imgData = canvas.toDataURL();
+          printWindow.document.write(
+            `<img src="${imgData}" alt="furniture template">`
+          );
+        });
+
+        // フッターを書き出し
+        printWindow.document.write("</body></html>");
+        printWindow.document.close();
+
+        // 必ず onload 後に print を実行
+        printWindow.onload = () => {
+          printWindow.focus();
+          printWindow.print();
+        };
+      }
+    </script>
+  </body>
+</html>
